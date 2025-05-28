@@ -47,7 +47,7 @@ async def check_and_post():
 
 
                 if not status and dt_str and text:
-                    dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
+                    dt = pytz.timezone(TIMEZONE).localize(datetime.strptime(dt_str, "%Y-%m-%d %H:%M"))
                     now = datetime.now(pytz.timezone(TIMEZONE))
 
                     if dt <= now:
