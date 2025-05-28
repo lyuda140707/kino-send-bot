@@ -12,6 +12,8 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
 
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
 load_dotenv()
 
 # Налаштування
@@ -35,6 +37,10 @@ def get_sheet():
     return client.open_by_key(SHEET_ID).sheet1
 
 async def check_and_post():
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🎬 Відкрити WebApp", url="https://t.me/UAKinoTochka_bot")]
+    ])
+    
     while True:
         try:
             sheet = get_sheet()
@@ -51,15 +57,19 @@ async def check_and_post():
                     now = datetime.now(tz)
 
                     if dt <= now:
-                        if media_url.startswith("BAAC") or media_url.startswith("BQAC") or media_url.startswith("CAAC"):
-                            # Це file_id
-                            await bot.send_video(chat_id=CHANNEL_USERNAME, video=media_url, caption=text)
+                        final_text = f"{text}\n\n🔎 <b>Шукай фільм у WebApp!</b>"
+                        if media_url.startswith(("BAAC", "BQAC", "CAAC")):
+                            await bot.send_video(chat_id=CHANNEL_USERNAME, video=media_url, caption=final_text, reply_markup=keyboard)
                         elif media_url.endswith((".jpg", ".jpeg", ".png", ".webp")):
-                            await bot.send_photo(chat_id=CHANNEL_USERNAME, photo=media_url, caption=text)
+                            await bot.send_photo(chat_id=CHANNEL_USERNAME, photo=media_url, caption=final_text, reply_markup=keyboard)
                         elif media_url.endswith((".mp4", ".mov", ".mkv")):
-                            await bot.send_video(chat_id=CHANNEL_USERNAME, video=media_url, caption=text)
+                            await bot.send_video(chat_id=CHANNEL_USERNAME, video=media_url, caption=final_text, reply_markup=keyboard)
                         else:
-                            await bot.send_message(chat_id=CHANNEL_USERNAME, text=text)
+                            await bot.send_message(chat_id=CHANNEL_USERNAME, text=final_text, reply_markup=keyboard)
+
+
+                      
+
 
                         # Позначити як опубліковане
                         sheet.update_cell(idx, 5, "✅")
