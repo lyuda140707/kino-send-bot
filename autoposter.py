@@ -43,7 +43,8 @@ async def check_and_post():
                 status = row.get("D (Статус)", "")
                 dt_str = row.get("B (Дата і час)", "")
                 text = row.get("A (Текст)", "")
-                media_url = row.get("C (Фото URL)", "")
+                media_url = row.get("D — Прямий лінк (формула)", "")
+
 
                 if not status and dt_str and text:
                     dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
