@@ -47,8 +47,9 @@ async def check_and_post():
 
 
                 if not status and dt_str and text:
-                    dt = pytz.timezone(TIMEZONE).localize(datetime.strptime(dt_str, "%Y-%m-%d %H:%M"))
-                    now = datetime.now(pytz.timezone(TIMEZONE))
+                    tz = pytz.timezone(TIMEZONE)
+                    dt = tz.localize(datetime.strptime(dt_str, "%Y-%m-%d %H:%M"))
+                    now = datetime.now(tz)
 
                     if dt <= now:
                         if media_url.endswith((".jpg", ".jpeg", ".png", ".webp")):
