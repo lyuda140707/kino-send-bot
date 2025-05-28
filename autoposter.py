@@ -40,7 +40,7 @@ async def check_and_post():
             sheet = get_sheet()
             rows = sheet.get_all_records()
             for idx, row in enumerate(rows, start=2):  # Починаючи з другого рядка
-                status = row.get("D (Статус)", "")
+                status = row.get("E (Статус)", "")
                 dt_str = row.get("B (Дата і час)", "")
                 text = row.get("A (Текст)", "")
                 media_url = row.get("D — Прямий лінк (формула)", "")
@@ -59,7 +59,7 @@ async def check_and_post():
                             await bot.send_message(chat_id=CHANNEL_USERNAME, text=text)
 
                         # Позначити як опубліковане
-                        sheet.update_cell(idx, 4, "✅")
+                        sheet.update_cell(idx, 5, "✅")  # Колонка E — Статус
 
         except Exception as e:
             logging.error(f"Помилка: {e}")
