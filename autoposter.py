@@ -3,6 +3,7 @@ import logging
 import asyncio
 from datetime import datetime
 import pytz
+from aiogram.client.default import DefaultBotProperties
 
 from aiogram import Bot
 from aiogram.enums import ParseMode
@@ -20,7 +21,10 @@ CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
 TIMEZONE = "Europe/Kyiv"
 
 # Підключення до бота
-bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
+bot = Bot(
+    token=BOT_TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+)
 
 # Google Sheets авторизація
 def get_sheet():
