@@ -39,12 +39,11 @@ async def check_and_post():
         try:
             sheet = get_sheet()
             rows = sheet.get_all_records()
-            for idx, row in enumerate(rows, start=2):  # Починаючи з другого рядка
+            for idx, row in enumerate(rows, start=2):
                 status = row.get("E (Статус)", "")
                 dt_str = row.get("B (Дата і час)", "")
                 text = row.get("A (Текст)", "")
                 media_url = row.get("D — Прямий лінк (формула)", "")
-
 
                 if not status and dt_str and text:
                     tz = pytz.timezone(TIMEZONE)
@@ -52,7 +51,10 @@ async def check_and_post():
                     now = datetime.now(tz)
 
                     if dt <= now:
-                        if media_url.endswith((".jpg", ".jpeg", ".png", ".webp")):
+                        if media_url.startswith("BAAC") or media_url.startswith("BQAC") or media_url.startswith("CAAC"):
+                            # Це file_id
+                            await bot.send_video(chat_id=CHANNEL_USERNAME, video=media_url, caption=text)
+                        elif media_url.endswith((".jpg", ".jpeg", ".png", ".webp")):
                             await bot.send_photo(chat_id=CHANNEL_USERNAME, photo=media_url, caption=text)
                         elif media_url.endswith((".mp4", ".mov", ".mkv")):
                             await bot.send_video(chat_id=CHANNEL_USERNAME, video=media_url, caption=text)
@@ -60,7 +62,7 @@ async def check_and_post():
                             await bot.send_message(chat_id=CHANNEL_USERNAME, text=text)
 
                         # Позначити як опубліковане
-                        sheet.update_cell(idx, 5, "✅")  # Колонка E — Статус
+                        sheet.update_cell(idx, 5, "✅")
 
         except Exception as e:
             logging.error(f"Помилка: {e}")
