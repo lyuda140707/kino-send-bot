@@ -4,17 +4,15 @@ import asyncio
 from datetime import datetime
 import pytz
 from aiogram.client.default import DefaultBotProperties
-
 from aiogram import Bot
 from aiogram.enums import ParseMode
-
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
-
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 load_dotenv()
+logging.basicConfig(level=logging.INFO)
 
 # Налаштування
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -45,6 +43,7 @@ async def check_and_post():
         try:
             sheet = get_sheet()
             rows = sheet.get_all_records()
+
             for idx, row in enumerate(rows, start=2):
                 status = row.get("E (Статус)", "")
                 dt_str = row.get("B (Дата і час)", "")
@@ -58,21 +57,29 @@ async def check_and_post():
 
                     if dt <= now:
                         final_text = f"{text}\n\n🔎 <b>Шукай фільм у WebApp!</b>"
-                        if media_url.startswith(("BAAC", "BQAC", "CAAC")):
-                            await bot.send_video(chat_id=CHANNEL_USERNAME, video=media_url, caption=final_text, reply_markup=keyboard)
-                        elif media_url.endswith((".jpg", ".jpeg", ".png", ".webp")):
-                            await bot.send_photo(chat_id=CHANNEL_USERNAME, photo=media_url, caption=final_text, reply_markup=keyboard)
-                        elif media_url.endswith((".mp4", ".mov", ".mkv")):
-                            await bot.send_video(chat_id=CHANNEL_USERNAME, video=media_url, caption=final_text, reply_markup=keyboard)
-                        else:
+
+                        try:
+                            if media_url.endswith((".jpg", ".jpeg", ".png", ".webp")):
+                                await bot.send_photo(
+                                    chat_id=CHANNEL_USERNAME,
+                                    photo=media_url,
+                                    caption=final_text,
+                                    reply_markup=keyboard
+                                )
+                            else:
+                                await bot.send_video(
+                                    chat_id=CHANNEL_USERNAME,
+                                    video=media_url,
+                                    caption=final_text,
+                                    reply_markup=keyboard
+                                )
+
+                            # Позначаємо як опубліковане
+                            sheet.update_cell(idx, 5, "✅")
+
+                        except Exception as e:
+                            logging.error(f"❌ Не вдалося надіслати медіа: {e}")
                             await bot.send_message(chat_id=CHANNEL_USERNAME, text=final_text, reply_markup=keyboard)
-
-
-                      
-
-
-                        # Позначити як опубліковане
-                        sheet.update_cell(idx, 5, "✅")
 
         except Exception as e:
             logging.error(f"Помилка: {e}")
