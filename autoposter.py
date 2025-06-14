@@ -26,7 +26,7 @@ bot = Bot(
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
 )
 
-# Google Sheets авторизація
+# Авторизація Google Sheets
 def get_sheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds_data = os.getenv("GOOGLE_SHEETS_CREDENTIALS_JSON")
@@ -34,11 +34,12 @@ def get_sheet():
     client = gspread.authorize(creds)
     return client.open_by_key(SHEET_ID).sheet1
 
+# Головна функція автопостингу
 async def check_and_post():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🎬 Відкрити WebApp", url="https://t.me/UAKinoTochka_bot")]
     ])
-    
+
     while True:
         try:
             sheet = get_sheet()
@@ -59,6 +60,7 @@ async def check_and_post():
                         final_text = f"{text}\n\n🔎 <b>Шукай фільм у WebApp!</b>"
 
                         try:
+                            # Фото
                             if media_url.endswith((".jpg", ".jpeg", ".png", ".webp")):
                                 await bot.send_photo(
                                     chat_id=CHANNEL_USERNAME,
@@ -66,6 +68,26 @@ async def check_and_post():
                                     caption=final_text,
                                     reply_markup=keyboard
                                 )
+
+                            # file_id з Telegram
+                            elif media_url.startswith(("BAAC", "BQAC", "CAAC")):
+                                try:
+                                    await bot.send_video(
+                                        chat_id=CHANNEL_USERNAME,
+                                        video=media_url,
+                                        caption=final_text,
+                                        reply_markup=keyboard
+                                    )
+                                except Exception as inner_e:
+                                    logging.warning(f"⚠️ Не вдалося як video, пробую як document: {inner_e}")
+                                    await bot.send_document(
+                                        chat_id=CHANNEL_USERNAME,
+                                        document=media_url,
+                                        caption=final_text,
+                                        reply_markup=keyboard
+                                    )
+
+                            # mp4 або інші відео
                             else:
                                 await bot.send_video(
                                     chat_id=CHANNEL_USERNAME,
@@ -74,17 +96,23 @@ async def check_and_post():
                                     reply_markup=keyboard
                                 )
 
-                            # Позначаємо як опубліковане
-                            sheet.update_cell(idx, 5, "✅")
+                            # ✅ Позначаємо як опубліковане
+                            try:
+                                cell_address = f"E{idx}"
+                                sheet.update_acell(cell_address, "✅")
+                                logging.info(f"✅ Статус оновлено в таблиці для рядка {idx}")
+                            except Exception as update_err:
+                                logging.error(f"❌ Не вдалося оновити статус у таблиці (рядок {idx}): {update_err}")
 
                         except Exception as e:
                             logging.error(f"❌ Не вдалося надіслати медіа: {e}")
                             await bot.send_message(chat_id=CHANNEL_USERNAME, text=final_text, reply_markup=keyboard)
 
         except Exception as e:
-            logging.error(f"Помилка: {e}")
+            logging.error(f"🔥 Загальна помилка: {e}")
 
         await asyncio.sleep(60)
 
+# Запуск
 if __name__ == "__main__":
     asyncio.run(check_and_post())
