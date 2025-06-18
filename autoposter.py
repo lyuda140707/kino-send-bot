@@ -19,7 +19,7 @@ load_dotenv()
 # Налаштування
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 SHEET_ID = os.getenv("SHEET_ID")
-CHANNEL_USERNAME = os.getenv("CHANNEL_USERNAME")
+CHANNEL_USERNAMES = ["@KinoTochkaUA", "@KinoTochkaFilms"]
 TIMEZONE = "Europe/Kyiv"
 
 # Підключення до бота
@@ -58,15 +58,16 @@ async def check_and_post():
 
                     if dt <= now:
                         final_text = f"{text}\n\n🔎 <b>Шукай фільм у WebApp!</b>"
-                        if media_url.startswith(("BAAC", "BQAC", "CAAC")):
-                            await bot.send_video(chat_id=CHANNEL_USERNAME, video=media_url, caption=final_text, reply_markup=keyboard)
-                        elif media_url.endswith((".jpg", ".jpeg", ".png", ".webp")):
-                            await bot.send_photo(chat_id=CHANNEL_USERNAME, photo=media_url, caption=final_text, reply_markup=keyboard)
-                        elif media_url.endswith((".mp4", ".mov", ".mkv")):
-                            await bot.send_video(chat_id=CHANNEL_USERNAME, video=media_url, caption=final_text, reply_markup=keyboard)
-                        else:
-                            await bot.send_message(chat_id=CHANNEL_USERNAME, text=final_text, reply_markup=keyboard)
 
+                        for channel in CHANNEL_USERNAMES:
+                            if media_url.startswith(("BAAC", "BQAC", "CAAC")):
+                                await bot.send_video(chat_id=channel, video=media_url, caption=final_text, reply_markup=keyboard)
+                            elif media_url.endswith((".jpg", ".jpeg", ".png", ".webp")):
+                                await bot.send_photo(chat_id=channel, photo=media_url, caption=final_text, reply_markup=keyboard)
+                            elif media_url.endswith((".mp4", ".mov", ".mkv")):
+                                await bot.send_video(chat_id=channel, video=media_url, caption=final_text, reply_markup=keyboard)
+                            else:
+                                await bot.send_message(chat_id=channel, text=final_text, reply_markup=keyboard)
 
                       
 
