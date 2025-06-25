@@ -38,7 +38,7 @@ def get_sheet():
 
 async def check_and_post():
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🎬 Відкрити WebApp", url="https://t.me/UAKinoTochka_bot")]
+        [InlineKeyboardButton(text="🟢 Відкрити RelaxTime", url="https://t.me/RelaxTimeUABot?startapp"))]
     ])
     
     while True:
