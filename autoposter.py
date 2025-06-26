@@ -81,6 +81,6 @@ async def check_and_post():
             logging.error(f"Помилка: {e}")
 
         await asyncio.sleep(60)
-
+        
 if __name__ == "__main__":
     asyncio.run(check_and_post())
