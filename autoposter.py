@@ -12,6 +12,7 @@ from aiogram.enums import ParseMode
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
+import json
 
 load_dotenv()
 
@@ -40,7 +41,7 @@ bot = Bot(
 def get_sheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds_data = os.getenv("GOOGLE_SHEETS_CREDENTIALS_JSON")
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(eval(creds_data), scope)
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(creds_data), scope)
     client = gspread.authorize(creds)
     return client.open_by_key(SHEET_ID).sheet1
 
