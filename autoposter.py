@@ -46,16 +46,17 @@ def get_sheet():
     return client.open_by_key(SHEET_ID).sheet1
 
 async def check_and_post():
-    
     while True:
         try:
             sheet = get_sheet()
-            rows = sheet.get_all_records()
+            expected_headers = ["Текст", "Дата і час", "Оригінальне посилання", "Прямий лінк", "Статус"]
+            rows = sheet.get_all_records(expected_headers=expected_headers)
+            
             for idx, row in enumerate(rows, start=2):
-                status = row.get("E (Статус)", "")
-                dt_str = row.get("B (Дата і час)", "")
-                text = row.get("A (Текст)", "")
-                media_url = row.get("D — Прямий лінк (формула)", "")
+                status = row.get("Статус", "")
+                dt_str = row.get("Дата і час", "")
+                text = row.get("Текст", "")
+                media_url = row.get("Прямий лінк", "")
 
                 if not status and dt_str and text:
                     tz = pytz.timezone(TIMEZONE)
@@ -82,6 +83,7 @@ async def check_and_post():
             logging.error(f"Помилка: {e}")
 
         await asyncio.sleep(60)
+
         
 if __name__ == "__main__":
     asyncio.run(check_and_post())
