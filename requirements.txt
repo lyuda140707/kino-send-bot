@@ -3,3 +3,4 @@ gspread
 oauth2client
 python-dotenv
 pytz
+pydantic<2.6
