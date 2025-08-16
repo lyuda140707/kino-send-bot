@@ -56,7 +56,7 @@ async def check_and_post():
                 status = row.get("Статус", "")
                 dt_str = row.get("Дата і час", "")
                 text = row.get("Текст", "")
-                media_url = row.get("Прямий лінк", "")
+                media_url = row.get("Прямий лінк", "").strip()  # прибираємо пробіли та сміття
 
                 if not status and dt_str and text:
                     tz = pytz.timezone(TIMEZONE)
@@ -68,15 +68,23 @@ async def check_and_post():
                         final_text = f"{text}\n\n{footer}"
 
                         for channel in CHANNEL_USERNAMES:
-                            if media_url.startswith(("BAAC", "BQAC", "CAAC")):
+                            if media_url and media_url.startswith(("BAAC", "BQAC", "CAAC")):
+                                # file_id (ID медіа з Telegram)
                                 await bot.send_video(chat_id=channel, video=media_url, caption=final_text)
-                            elif media_url.endswith((".jpg", ".jpeg", ".png", ".webp")):
+
+                            elif media_url and media_url.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+                                # зображення
                                 await bot.send_photo(chat_id=channel, photo=media_url, caption=final_text)
-                            elif media_url.endswith((".mp4", ".mov", ".mkv")):
+
+                            elif media_url and media_url.lower().endswith((".mp4", ".mov", ".mkv")):
+                                # відео
                                 await bot.send_video(chat_id=channel, video=media_url, caption=final_text)
+
                             else:
+                                # якщо лінка нема або він дивний — шлемо тільки текст
                                 await bot.send_message(chat_id=channel, text=final_text)
 
+                        # оновлюємо статус у таблиці
                         sheet.update_cell(idx, 5, "✅")
 
         except Exception as e:
