@@ -1,4 +1,3 @@
-# Telegram & веб
 aiogram==3.22.0
 aiohttp==3.12.9
 aiofiles==23.2.1
@@ -7,21 +6,16 @@ fastapi==0.111.0
 uvicorn[standard]==0.30.0
 apscheduler==3.10.4
 
-# Google Sheets
 gspread==6.1.2
 oauth2client==4.1.3
 
-# Інше
 python-dotenv==1.0.1
 pytz==2024.1
 requests==2.32.3
 
-# Pydantic — сумісна пара з готовими wheels
 pydantic==2.8.2
 pydantic-core==2.20.1
 
-# Щоб pip тягнув тільки wheels (без компіляції)
 pip>=25.2
 setuptools>=70.0.0
 wheel>=0.44.0
-
