@@ -1,14 +1,10 @@
 import os
 import logging
-import asyncio
 import random
 from datetime import datetime
 import pytz
 from aiogram.client.default import DefaultBotProperties
-
 from aiogram import Bot
-from aiogram.enums import ParseMode
-
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
@@ -16,13 +12,12 @@ import json
 
 load_dotenv()
 
-# Налаштування
+# ===== Налаштування =====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 SHEET_ID = os.getenv("SHEET_ID")
 CHANNEL_USERNAMES = ["@KinoTochkaUA", "@KinoTochkaFilms"]
-TIMEZONE = "Europe/Kyiv"
+TIMEZONE = os.getenv("TIMEZONE", "Europe/Kyiv")
 
-# Список випадкових підписів
 FOOTERS = [
     "🎬 У нас завжди є що подивитись — слідкуй!",
     "✨ Кіно кожного дня — залишайся з нами!",
@@ -31,67 +26,61 @@ FOOTERS = [
     "🔎 З нами знайдеш, що подивитись!",
 ]
 
-# Підключення до бота
-bot = Bot(
-    token=BOT_TOKEN,
-    default=DefaultBotProperties(parse_mode=None)  # вимикаємо HTML
-)
+# Один об'єкт бота на весь процес
+bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=None))
 
-# Google Sheets авторизація
 def get_sheet():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds_data = os.getenv("GOOGLE_SHEETS_CREDENTIALS_JSON")
+    if not creds_data:
+        raise RuntimeError("GOOGLE_SHEETS_CREDENTIALS_JSON is not set")
     creds = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(creds_data), scope)
     client = gspread.authorize(creds)
     return client.open_by_key(SHEET_ID).sheet1
 
-async def check_and_post():
-    while True:
-        try:
-            sheet = get_sheet()
-            expected_headers = ["Текст", "Дата і час", "Оригінальне посилання", "Прямий лінк", "Статус"]
-            rows = sheet.get_all_records(expected_headers=expected_headers)
-            
-            for idx, row in enumerate(rows, start=2):
-                status = row.get("Статус", "")
-                dt_str = row.get("Дата і час", "")
-                text = row.get("Текст", "")
-                media_url = row.get("Прямий лінк", "").strip()  # прибираємо пробіли та сміття
+async def send_to_channels(final_text: str, media_url: str | None):
+    for channel in CHANNEL_USERNAMES:
+        if media_url and media_url.startswith(("BAAC", "BQAC", "CAAC")):
+            await bot.send_video(chat_id=channel, video=media_url, caption=final_text)
+        elif media_url and media_url.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+            await bot.send_photo(chat_id=channel, photo=media_url, caption=final_text)
+        elif media_url and media_url.lower().endswith((".mp4", ".mov", ".mkv")):
+            await bot.send_video(chat_id=channel, video=media_url, caption=final_text)
+        else:
+            await bot.send_message(chat_id=channel, text=final_text)
 
-                if not status and dt_str and text:
-                    tz = pytz.timezone(TIMEZONE)
+async def run_once():
+    """Одна ітерація: знайти пости на час і відправити їх, оновити статус."""
+    try:
+        sheet = get_sheet()
+        expected_headers = ["Текст", "Дата і час", "Оригінальне посилання", "Прямий лінк", "Статус"]
+        rows = sheet.get_all_records(expected_headers=expected_headers)
+
+        tz = pytz.timezone(TIMEZONE)
+        now = datetime.now(tz)
+
+        for idx, row in enumerate(rows, start=2):  # 2 — бо 1-й рядок це заголовки
+            status = (row.get("Статус") or "").strip()
+            dt_str = (row.get("Дата і час") or "").strip()
+            text = (row.get("Текст") or "").strip()
+            media_url = (row.get("Прямий лінк") or "").strip()
+
+            if not status and dt_str and text:
+                try:
                     dt = tz.localize(datetime.strptime(dt_str, "%Y-%m-%d %H:%M"))
-                    now = datetime.now(tz)
+                except ValueError:
+                    logging.warning(f"Некоректна дата у рядку {idx}: {dt_str}")
+                    continue
 
-                    if dt <= now:
-                        footer = random.choice(FOOTERS)
-                        final_text = f"{text}\n\n{footer}"
+                if dt <= now:
+                    footer = random.choice(FOOTERS)
+                    final_text = f"{text}\n\n{footer}"
+                    await send_to_channels(final_text, media_url)
+                    sheet.update_cell(idx, 5, "✅")  # кол.5 = "Статус"
+    except Exception as e:
+        logging.error(f"Помилка в run_once: {e}")
 
-                        for channel in CHANNEL_USERNAMES:
-                            if media_url and media_url.startswith(("BAAC", "BQAC", "CAAC")):
-                                # file_id (ID медіа з Telegram)
-                                await bot.send_video(chat_id=channel, video=media_url, caption=final_text)
-
-                            elif media_url and media_url.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
-                                # зображення
-                                await bot.send_photo(chat_id=channel, photo=media_url, caption=final_text)
-
-                            elif media_url and media_url.lower().endswith((".mp4", ".mov", ".mkv")):
-                                # відео
-                                await bot.send_video(chat_id=channel, video=media_url, caption=final_text)
-
-                            else:
-                                # якщо лінка нема або він дивний — шлемо тільки текст
-                                await bot.send_message(chat_id=channel, text=final_text)
-
-                        # оновлюємо статус у таблиці
-                        sheet.update_cell(idx, 5, "✅")
-
-        except Exception as e:
-            logging.error(f"Помилка: {e}")
-
-        await asyncio.sleep(60)
-
-        
+# локальний ручний запуск однієї ітерації (не використовується на Render)
 if __name__ == "__main__":
-    asyncio.run(check_and_post())
+    import asyncio
+    asyncio.run(run_once())
