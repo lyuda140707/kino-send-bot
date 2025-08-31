@@ -30,13 +30,29 @@ FOOTERS = [
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=None))
 
 def get_sheet():
+    import base64, json
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds_data = os.getenv("GOOGLE_SHEETS_CREDENTIALS_JSON")
-    if not creds_data:
-        raise RuntimeError("GOOGLE_SHEETS_CREDENTIALS_JSON is not set")
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(json.loads(creds_data), scope)
+
+    creds_b64 = os.getenv("GOOGLE_SHEETS_CREDENTIALS_B64")
+    creds_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS_JSON")
+
+    if creds_b64:
+        try:
+            data = json.loads(base64.b64decode(creds_b64).decode("utf-8"))
+        except Exception as e:
+            raise RuntimeError(f"Bad GOOGLE_SHEETS_CREDENTIALS_B64: {e}")
+    elif creds_json:
+        try:
+            data = json.loads(creds_json)
+        except Exception as e:
+            raise RuntimeError(f"Bad GOOGLE_SHEETS_CREDENTIALS_JSON: {e}")
+    else:
+        raise RuntimeError("Missing GOOGLE_SHEETS_CREDENTIALS_B64 or GOOGLE_SHEETS_CREDENTIALS_JSON")
+
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(data, scope)
     client = gspread.authorize(creds)
     return client.open_by_key(SHEET_ID).sheet1
+
 
 async def send_to_channels(final_text: str, media_url: str | None):
     for channel in CHANNEL_USERNAMES:
