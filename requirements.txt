@@ -1,5 +1,5 @@
 # Telegram & веб
-aiogram==3.12.8
+aiogram==3.22.0
 aiohttp==3.12.9
 aiofiles==23.2.1
 
@@ -20,7 +20,8 @@ requests==2.32.3
 pydantic==2.8.2
 pydantic-core==2.20.1
 
-# Щоб pip тягнув тільки wheels
+# Щоб pip тягнув тільки wheels (без компіляції)
 pip>=25.2
 setuptools>=70.0.0
 wheel>=0.44.0
+
