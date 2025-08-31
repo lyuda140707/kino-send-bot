@@ -9,10 +9,11 @@ python-dotenv==1.0.1
 pytz==2024.1
 requests==2.32.3
 
-pydantic==2.5.3
-pydantic-core==2.14.6
+# Сумісна пара (є готові wheels на Render)
+pydantic==2.8.2
+pydantic-core==2.20.1
 
-# щоб брались готові колеса
+# Щоб брались лише wheels (і не компілювало з сирців)
 pip>=25.2
 setuptools>=70.0.0
 wheel>=0.44.0
