@@ -1,13 +1,11 @@
 # server.py
 import os
 import asyncio
+import logging
 from fastapi import FastAPI
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-
-# імпортуй з твого скрипта функцію, яка робить одну “ітерацію” посту
-# (див. приклад нижче у п.1.2)
-from autoposter import run_once
+from autoposter import run_once, bot  # імпортуємо твою функцію з autoposter.py
 
 app = FastAPI()
 
@@ -17,11 +15,18 @@ async def ping():
 
 @app.on_event("startup")
 async def on_startup():
-    # ПЛАНУВАЛЬНИК: запускаємо run_once кожні N хв
-    interval_min = int(os.getenv("POST_INTERVAL_MIN", "10"))
+    logging.basicConfig(level=logging.INFO)
+    interval_min = int(os.getenv("POST_INTERVAL_MIN", "10"))  # кожні N хв перевіряти таблицю
     scheduler = AsyncIOScheduler(timezone="UTC")
     scheduler.add_job(run_once, IntervalTrigger(minutes=interval_min))
     scheduler.start()
 
-    # (опційно) — одразу одна спроба при старті:
+    # одразу виконати одну ітерацію після старту
     asyncio.create_task(run_once())
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    try:
+        await bot.session.close()
+    except Exception:
+        pass
