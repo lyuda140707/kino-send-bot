@@ -151,8 +151,8 @@ async def run_once():
     except Exception:
         logging.exception("Помилка в run_once")
 
-
-# локальний ручний запуск однієї ітерації (не використовується на Render)
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(run_once())
+async def close_bot():
+    try:
+        await bot.session.close()
+    except Exception:
+        logging.exception("Bot close failed")
