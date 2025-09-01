@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 import json
 import traceback
 load_dotenv()
+from fastapi import FastAPI
 
 # ===== Налаштування =====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -30,33 +31,39 @@ FOOTERS = [
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=None))
 
 def get_sheet():
-    import base64, json
+    import base64, json, re, logging
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
-    raw_b64 = (os.getenv("GOOGLE_SHEETS_CREDENTIALS_B64") or "").strip()
+    raw_b64  = (os.getenv("GOOGLE_SHEETS_CREDENTIALS_B64")  or "").strip()
     raw_json = (os.getenv("GOOGLE_SHEETS_CREDENTIALS_JSON") or "").strip()
 
-    def _strip_wrapping_quotes(s: str) -> str:
-        if len(s) >= 2 and s[0] in ("'", '"') and s[-1] == s[0]:
-            return s[1:-1]
-        return s
+    def _parse_b64(b64s: str):
+        b64s = "".join(b64s.split())  # прибрати пробіли/перенесення
+        payload = base64.b64decode(b64s, validate=False).decode("utf-8", errors="strict")
+        return json.loads(payload)
+
+    def _looks_like_b64(s: str) -> bool:
+        return len(s) > 100 and re.fullmatch(r"[A-Za-z0-9+/=\s]+", s) is not None
 
     try:
         if raw_b64:
-            payload = base64.b64decode(_strip_wrapping_quotes(raw_b64)).decode("utf-8")
-            payload = _strip_wrapping_quotes(payload)
-            data = json.loads(payload)
+            data = _parse_b64(raw_b64)
         elif raw_json:
-            s = _strip_wrapping_quotes(raw_json)
             try:
-                data = json.loads(s)
+                data = json.loads(raw_json)
             except json.JSONDecodeError:
-                s_unescaped = bytes(s, "utf-8").decode("unicode_escape")
-                data = json.loads(s_unescaped)
+                if _looks_like_b64(raw_json):
+                    data = _parse_b64(raw_json)
+                else:
+                    logging.error("GOOGLE_SHEETS_CREDENTIALS_JSON не схожий ні на JSON, ні на base64 (len=%d)", len(raw_json))
+                    raise
         else:
-            raise RuntimeError("Missing GOOGLE_SHEETS_CREDENTIALS_B64 or GOOGLE_SHEETS_CREDENTIALS_JSON")
-    except Exception as e:
-        logging.error("Помилка в run_once: %s\n%s", e, traceback.format_exc())
+            raise RuntimeError("Немає GOOGLE_SHEETS_CREDENTIALS_B64 і GOOGLE_SHEETS_CREDENTIALS_JSON")
+
+        email = data.get("client_email", "")
+        logging.warning("CREDS OK: client_email=***%s", email[-18:] if email else "missing")
+    except Exception:
+        logging.exception("Не вдалося розібрати Google credentials")
         raise
 
     creds = ServiceAccountCredentials.from_json_keyfile_dict(data, scope)
