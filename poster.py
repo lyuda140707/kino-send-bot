@@ -70,14 +70,21 @@ def get_sheet():
 
 async def send_to_channels(final_text: str, media_url: str | None):
     for channel in CHANNEL_USERNAMES:
-        if media_url and media_url.startswith(("BAAC", "BQAC", "CAAC")):
-            await bot.send_video(chat_id=channel, video=media_url, caption=final_text)
-        elif media_url and media_url.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
-            await bot.send_photo(chat_id=channel, photo=media_url, caption=final_text)
-        elif media_url and media_url.lower().endswith((".mp4", ".mov", ".mkv")):
-            await bot.send_video(chat_id=channel, video=media_url, caption=final_text)
+        if not media_url:
+            await bot.send_message(chat_id=channel, text=final_text)
+            continue
+
+        mu = media_url.lower().replace(".webb", ".webp")  # автофікс описки
+
+        if mu.startswith(("baac", "bqac", "caac")):
+            await bot.send_video(chat_id=channel, video=mu, caption=final_text)
+        elif mu.endswith((".jpg", ".jpeg", ".png", ".webp")):
+            await bot.send_photo(chat_id=channel, photo=mu, caption=final_text)
+        elif mu.endswith((".mp4", ".mov", ".mkv", ".webm")):
+            await bot.send_video(chat_id=channel, video=mu, caption=final_text)
         else:
             await bot.send_message(chat_id=channel, text=final_text)
+
 
 async def run_once():
     """Одна ітерація: знайти пости на час і відправити їх, оновити статус."""
