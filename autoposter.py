@@ -105,10 +105,10 @@ async def run_once():
             return (row.get(key) or row.get(key.strip()) or "").strip()
 
         for idx, row in enumerate(rows, start=2):  # 2 — бо 1-й рядок це заголовки
-            status     = getv(row, "Статус")
-            dt_str     = getv(row, "Дата і час")
-            text       = getv(row, "Текст")
-            media_url  = getv(row, "Прямий лінк")
+            status    = getv(row, "Статус")
+            dt_str    = getv(row, "Дата і час")
+            text      = getv(row, "Текст")
+            media_url = getv(row, "Прямий лінк")
 
             if status or not dt_str or not text:
                 continue
@@ -122,30 +122,31 @@ async def run_once():
                     break
                 except ValueError:
                     continue
+
             if dt is None:
                 logging.warning("Некоректна дата у рядку %d: %r", idx, dt_str)
                 continue
 
-if dt <= now:
-    footer = random.choice(FOOTERS)
-    final_text = f"{text}\n\n{footer}"
-    try:
-        # 1) ставимо тимчасову позначку, щоб не відправити двічі при рестарті
-        sheet.update_cell(idx, 5, "⏳")  # кол.5 = "Статус"
-        # 2) відправляємо в канали
-        await send_to_channels(final_text, media_url)
-        # 3) фіксуємо успіх
-        sheet.update_cell(idx, 5, "✅")
-        logging.info("Відправлено рядок %d", idx)
-    except Exception:
-        # 4) якщо збій — повертаємо порожньо, щоб спробувати пізніше ще раз
-        logging.exception("Збій під час відправки/оновлення для рядка %d", idx)
-        sheet.update_cell(idx, 5, "")
-        continue
-    
+            # ✅ ВАЖЛИВО: цей блок МАЄ бути всередині циклу for (з відступом)
+            if dt <= now:
+                footer = random.choice(FOOTERS)
+                final_text = f"{text}\n\n{footer}"
+                try:
+                    # 1) тимчасова позначка, щоб не задублювати при рестарті
+                    sheet.update_cell(idx, 5, "⏳")  # кол.5 = "Статус"
 
-              
+                    # 2) відправляємо
+                    await send_to_channels(final_text, media_url)
 
+                    # 3) фіксуємо успіх
+                    sheet.update_cell(idx, 5, "✅")
+                    logging.info("Відправлено рядок %d", idx)
+
+                except Exception:
+                    # 4) якщо збій — очистити статус, щоб спробувати ще
+                    logging.exception("Збій під час відправки/оновлення для рядка %d", idx)
+                    sheet.update_cell(idx, 5, "")
+                    continue
 
     except Exception:
         logging.exception("Помилка в run_once")
