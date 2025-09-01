@@ -9,7 +9,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
 import json
-
+import traceback
 load_dotenv()
 
 # ===== Налаштування =====
@@ -33,25 +33,36 @@ def get_sheet():
     import base64, json
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
-    creds_b64 = os.getenv("GOOGLE_SHEETS_CREDENTIALS_B64")
-    creds_json = os.getenv("GOOGLE_SHEETS_CREDENTIALS_JSON")
+    raw_b64 = (os.getenv("GOOGLE_SHEETS_CREDENTIALS_B64") or "").strip()
+    raw_json = (os.getenv("GOOGLE_SHEETS_CREDENTIALS_JSON") or "").strip()
 
-    if creds_b64:
-        try:
-            data = json.loads(base64.b64decode(creds_b64).decode("utf-8"))
-        except Exception as e:
-            raise RuntimeError(f"Bad GOOGLE_SHEETS_CREDENTIALS_B64: {e}")
-    elif creds_json:
-        try:
-            data = json.loads(creds_json)
-        except Exception as e:
-            raise RuntimeError(f"Bad GOOGLE_SHEETS_CREDENTIALS_JSON: {e}")
-    else:
-        raise RuntimeError("Missing GOOGLE_SHEETS_CREDENTIALS_B64 or GOOGLE_SHEETS_CREDENTIALS_JSON")
+    def _strip_wrapping_quotes(s: str) -> str:
+        if len(s) >= 2 and s[0] in ("'", '"') and s[-1] == s[0]:
+            return s[1:-1]
+        return s
+
+    try:
+        if raw_b64:
+            payload = base64.b64decode(_strip_wrapping_quotes(raw_b64)).decode("utf-8")
+            payload = _strip_wrapping_quotes(payload)
+            data = json.loads(payload)
+        elif raw_json:
+            s = _strip_wrapping_quotes(raw_json)
+            try:
+                data = json.loads(s)
+            except json.JSONDecodeError:
+                s_unescaped = bytes(s, "utf-8").decode("unicode_escape")
+                data = json.loads(s_unescaped)
+        else:
+            raise RuntimeError("Missing GOOGLE_SHEETS_CREDENTIALS_B64 or GOOGLE_SHEETS_CREDENTIALS_JSON")
+    except Exception as e:
+        logging.error("Помилка в run_once: %s\n%s", e, traceback.format_exc())
+        raise
 
     creds = ServiceAccountCredentials.from_json_keyfile_dict(data, scope)
     client = gspread.authorize(creds)
     return client.open_by_key(SHEET_ID).sheet1
+
 
 
 async def send_to_channels(final_text: str, media_url: str | None):
