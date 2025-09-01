@@ -8,6 +8,10 @@ import poster  # це твій файл вище, де є run_once()
 
 app = FastAPI()
 scheduler = AsyncIOScheduler()
+@app.get("/")
+async def root():
+    return {"ok": True, "ping": "/ping"}
+
 
 @app.get("/ping")
 async def ping():
