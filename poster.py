@@ -102,48 +102,39 @@ async def _download_file(url: str) -> tuple[bytes, str, str]:
 async def send_to_channels(final_text: str, media_url: str | None):
     for channel in CHANNEL_USERNAMES:
         try:
-            # якщо лінка немає — просто текст
+            # 0) без медіа — просто текст
             if not media_url:
                 await bot.send_message(chat_id=channel, text=final_text)
                 continue
 
-            # автофікс описки .webb → .webp
+            # 1) автофікс .webb → .webp
             mu = (media_url or "").strip().replace(".webb", ".webp")
             mul = mu.lower()
 
-            # 1) якщо це Telegram file_id — шлемо напряму
+            # 2) Якщо це Telegram file_id (рідко, але лишимо підтримку)
             if not mul.startswith("http") and mul[:2] in {"aa", "ag", "ba", "bq", "ca"}:
-                try:
-                    await bot.send_photo(chat_id=channel, photo=mu, caption=final_text)
-                except Exception:
-                    await bot.send_video(chat_id=channel, video=mu, caption=final_text)
+                await bot.send_photo(chat_id=channel, photo=mu, caption=final_text)
                 continue
 
-            # 2) якщо це http(s) — качаємо самі і шлемо БАЙТАМИ
+            # 3) Якщо http(s) — КАЧАЄМО і шлемо як фото (байтами)
             if mul.startswith("http"):
                 data, fname, ctype = await _download_file(mu)
+                logging.warning("MEDIA FETCHED: fname=%s ctype=%s size=%d", fname, ctype, len(data))
 
+                # Вважаємо картинкою якщо або MIME image/*, або розширення зображення
                 is_image = ctype.startswith("image/") or fname.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))
-                is_video = ctype.startswith("video/") or fname.lower().endswith((".mp4", ".mov", ".mkv", ".webm"))
-
                 if is_image:
                     await bot.send_photo(
                         chat_id=channel,
                         photo=BufferedInputFile(data, filename=fname),
                         caption=final_text,
                     )
-                elif is_video:
-                    await bot.send_video(
-                        chat_id=channel,
-                        video=BufferedInputFile(data, filename=fname),
-                        caption=final_text,
-                    )
                 else:
-                    # невідомий тип — як fallback відправимо текст + лінк
-                    await bot.send_message(chat_id=channel, text=f"{final_text}\n\n{mu}")
+                    # Якщо CDN раптом віддав не зображення — відправимо як текст + лінк (щоб був прев’ю)
+                    await bot.send_message(chat_id=channel, text=f"{final_text}\n\n{mu}", disable_web_page_preview=False)
                 continue
 
-            # 3) інші випадки — текст
+            # 4) Інші випадки — текст
             await bot.send_message(chat_id=channel, text=final_text)
 
         except Exception:
