@@ -20,13 +20,6 @@ logging.warning(
     ((os.getenv("SHEET_ID") or "")[:6] + "...") if os.getenv("SHEET_ID") else "MISSING",
     ("OK" if os.getenv("BOT_TOKEN") else "MISSING"),
 )
-logging.warning(
-    "ENV CHECK: B64=%d, JSON=%d, SHEET_ID=%s, BOT=%s",
-    len((os.getenv("GOOGLE_SHEETS_CREDENTIALS_B64") or "").strip()),
-    len((os.getenv("GOOGLE_SHEETS_CREDENTIALS_JSON") or "").strip()),
-    ((os.getenv("SHEET_ID") or "")[:6] + "...") if os.getenv("SHEET_ID") else "MISSING",
-    ("OK" if os.getenv("BOT_TOKEN") else "MISSING"),
-)
 
 
 # ===== Налаштування =====
@@ -133,16 +126,26 @@ async def run_once():
                 logging.warning("Некоректна дата у рядку %d: %r", idx, dt_str)
                 continue
 
-            if dt <= now:
-                footer = random.choice(FOOTERS)
-                final_text = f"{text}\n\n{footer}"
-                try:
-                    await send_to_channels(final_text, media_url)
-                    sheet.update_cell(idx, 5, "✅")  # кол.5 = "Статус"
-                    logging.info("Відправлено рядок %d", idx)
-                except Exception:
-                    logging.exception("Збій під час відправки/оновлення для рядка %d", idx)
-                    continue
+if dt <= now:
+    footer = random.choice(FOOTERS)
+    final_text = f"{text}\n\n{footer}"
+    try:
+        # 1) ставимо тимчасову позначку, щоб не відправити двічі при рестарті
+        sheet.update_cell(idx, 5, "⏳")  # кол.5 = "Статус"
+        # 2) відправляємо в канали
+        await send_to_channels(final_text, media_url)
+        # 3) фіксуємо успіх
+        sheet.update_cell(idx, 5, "✅")
+        logging.info("Відправлено рядок %d", idx)
+    except Exception:
+        # 4) якщо збій — повертаємо порожньо, щоб спробувати пізніше ще раз
+        logging.exception("Збій під час відправки/оновлення для рядка %d", idx)
+        sheet.update_cell(idx, 5, "")
+        continue
+    
+
+              
+
 
     except Exception:
         logging.exception("Помилка в run_once")
