@@ -4,16 +4,21 @@ import logging
 from fastapi import FastAPI
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi.responses import PlainTextResponse
+from fastapi import Request
 
 import poster  # це твій файл вище, де є run_once()
 
 app = FastAPI()
 scheduler = AsyncIOScheduler()
 
-@app.head("/")
-async def head_root():
-    # Відповідаємо 200 OK на HEAD /, щоб Render коректно визначав порт
-    return PlainTextResponse("", status_code=200)
+@app.api_route("/", methods=["GET", "HEAD"])
+async def root(request: Request):
+    # Render шле HEAD / — відповідаємо 200 без тіла
+    if request.method == "HEAD":
+        return PlainTextResponse("", status_code=200)
+    # GET /
+    return {"ok": True, "ping": "/ping"}
+
 
 @app.get("/")
 async def root():
@@ -23,6 +28,7 @@ async def root():
 @app.get("/ping")
 async def ping():
     return {"status": "ok"}
+
 
 # (необов'язково) Кнопка “запустити зараз” для швидкої перевірки
 @app.post("/run-now")
