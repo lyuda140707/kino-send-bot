@@ -8,10 +8,18 @@ from aiogram import Bot
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
-import jsonload_dotenv()
+import json
 import traceback
+
 load_dotenv()
 # ✅ разовий лог-чек середовища (побачиш у Render logs)
+logging.warning(
+    "ENV CHECK: B64=%d, JSON=%d, SHEET_ID=%s, BOT=%s",
+    len((os.getenv("GOOGLE_SHEETS_CREDENTIALS_B64") or "").strip()),
+    len((os.getenv("GOOGLE_SHEETS_CREDENTIALS_JSON") or "").strip()),
+    ((os.getenv("SHEET_ID") or "")[:6] + "...") if os.getenv("SHEET_ID") else "MISSING",
+    ("OK" if os.getenv("BOT_TOKEN") else "MISSING"),
+)
 logging.warning(
     "ENV CHECK: B64=%d, JSON=%d, SHEET_ID=%s, BOT=%s",
     len((os.getenv("GOOGLE_SHEETS_CREDENTIALS_B64") or "").strip()),
