@@ -10,6 +10,11 @@ from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
 import json
 import traceback
+from aiogram.types import BufferedInputFile
+import aiohttp
+from urllib.parse import urlparse
+import mimetypes
+import os as _os
 
 load_dotenv()
 # ✅ разовий лог-чек середовища (побачиш у Render logs)
@@ -65,25 +70,86 @@ def get_sheet():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(data, scope)
     client = gspread.authorize(creds)
     return client.open_by_key(SHEET_ID).sheet1
+async def _download_file(url: str) -> tuple[bytes, str, str]:
+    """
+    Скачати файл по URL. Повертає (data, filename, content_type).
+    Додаємо Referer для postimg, щоб CDN віддав саме файл.
+    """
+    from aiohttp import ClientTimeout
+
+    parsed = urlparse(url)
+    fname = _os.path.basename(parsed.path) or "file"
+    if "." not in fname:
+        ext = mimetypes.guess_extension(mimetypes.guess_type(url)[0] or "") or ""
+        fname = fname + ext
+
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Referer": "https://postimg.cc/",
+    }
+    timeout = ClientTimeout(total=25)
+
+    async with aiohttp.ClientSession(timeout=timeout) as s:
+        async with s.get(url, headers=headers, allow_redirects=True) as r:
+            if r.status != 200:
+                raise RuntimeError(f"HTTP {r.status} while fetching {url}")
+            data = await r.read()
+            ctype = (r.headers.get("Content-Type") or "").lower()
+            return data, fname, ctype
 
 
 
 async def send_to_channels(final_text: str, media_url: str | None):
     for channel in CHANNEL_USERNAMES:
-        if not media_url:
+        try:
+            # якщо лінка немає — просто текст
+            if not media_url:
+                await bot.send_message(chat_id=channel, text=final_text)
+                continue
+
+            # автофікс описки .webb → .webp
+            mu = (media_url or "").strip().replace(".webb", ".webp")
+            mul = mu.lower()
+
+            # 1) якщо це Telegram file_id — шлемо напряму
+            if not mul.startswith("http") and mul[:2] in {"aa", "ag", "ba", "bq", "ca"}:
+                try:
+                    await bot.send_photo(chat_id=channel, photo=mu, caption=final_text)
+                except Exception:
+                    await bot.send_video(chat_id=channel, video=mu, caption=final_text)
+                continue
+
+            # 2) якщо це http(s) — качаємо самі і шлемо БАЙТАМИ
+            if mul.startswith("http"):
+                data, fname, ctype = await _download_file(mu)
+
+                is_image = ctype.startswith("image/") or fname.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))
+                is_video = ctype.startswith("video/") or fname.lower().endswith((".mp4", ".mov", ".mkv", ".webm"))
+
+                if is_image:
+                    await bot.send_photo(
+                        chat_id=channel,
+                        photo=BufferedInputFile(data, filename=fname),
+                        caption=final_text,
+                    )
+                elif is_video:
+                    await bot.send_video(
+                        chat_id=channel,
+                        video=BufferedInputFile(data, filename=fname),
+                        caption=final_text,
+                    )
+                else:
+                    # невідомий тип — як fallback відправимо текст + лінк
+                    await bot.send_message(chat_id=channel, text=f"{final_text}\n\n{mu}")
+                continue
+
+            # 3) інші випадки — текст
             await bot.send_message(chat_id=channel, text=final_text)
+
+        except Exception:
+            logging.exception("send_to_channels failed for %s (url=%s)", channel, media_url)
             continue
 
-        mu = media_url.lower().replace(".webb", ".webp")  # автофікс описки
-
-        if mu.startswith(("baac", "bqac", "caac")):
-            await bot.send_video(chat_id=channel, video=mu, caption=final_text)
-        elif mu.endswith((".jpg", ".jpeg", ".png", ".webp")):
-            await bot.send_photo(chat_id=channel, photo=mu, caption=final_text)
-        elif mu.endswith((".mp4", ".mov", ".mkv", ".webm")):
-            await bot.send_video(chat_id=channel, video=mu, caption=final_text)
-        else:
-            await bot.send_message(chat_id=channel, text=final_text)
 
 
 async def run_once():
