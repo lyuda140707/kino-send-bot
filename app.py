@@ -20,10 +20,6 @@ async def root(request: Request):
     return {"ok": True, "ping": "/ping"}
 
 
-@app.get("/")
-async def root():
-    return {"ok": True, "ping": "/ping"}
-
 
 @app.get("/ping")
 async def ping():
@@ -31,11 +27,11 @@ async def ping():
 
 
 # (необов'язково) Кнопка “запустити зараз” для швидкої перевірки
-@app.post("/run-now")
+@app.api_route("/run-now", methods=["GET", "POST"])
 async def run_now():
-    # запускаємо поза розкладом, не блокуємо відповідь
     asyncio.create_task(poster.run_once())
     return {"started": True}
+
 
 @app.on_event("startup")
 async def on_startup():
