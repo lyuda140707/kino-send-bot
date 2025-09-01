@@ -8,10 +8,18 @@ from aiogram import Bot
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from dotenv import load_dotenv
-import json
+import jsonload_dotenv()
 import traceback
 load_dotenv()
-from fastapi import FastAPI
+# ✅ разовий лог-чек середовища (побачиш у Render logs)
+logging.warning(
+    "ENV CHECK: B64=%d, JSON=%d, SHEET_ID=%s, BOT=%s",
+    len((os.getenv("GOOGLE_SHEETS_CREDENTIALS_B64") or "").strip()),
+    len((os.getenv("GOOGLE_SHEETS_CREDENTIALS_JSON") or "").strip()),
+    ((os.getenv("SHEET_ID") or "")[:6] + "...") if os.getenv("SHEET_ID") else "MISSING",
+    ("OK" if os.getenv("BOT_TOKEN") else "MISSING"),
+)
+
 
 # ===== Налаштування =====
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -31,40 +39,29 @@ FOOTERS = [
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=None))
 
 def get_sheet():
-    import base64, json, re, logging
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    import base64, json
 
-    raw_b64  = (os.getenv("GOOGLE_SHEETS_CREDENTIALS_B64")  or "").strip()
-    raw_json = (os.getenv("GOOGLE_SHEETS_CREDENTIALS_JSON") or "").strip()
+    # Достатній scope для Sheets + Drive
+    scope = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
 
-    def _parse_b64(b64s: str):
-        b64s = "".join(b64s.split())  # прибрати пробіли/перенесення
-        payload = base64.b64decode(b64s, validate=False).decode("utf-8", errors="strict")
-        return json.loads(payload)
-
-    def _looks_like_b64(s: str) -> bool:
-        return len(s) > 100 and re.fullmatch(r"[A-Za-z0-9+/=\s]+", s) is not None
+    raw_b64 = (os.getenv("GOOGLE_SHEETS_CREDENTIALS_B64") or "").strip()
+    if not raw_b64:
+        raise RuntimeError("GOOGLE_SHEETS_CREDENTIALS_B64 is empty or not set")
 
     try:
-        if raw_b64:
-            data = _parse_b64(raw_b64)
-        elif raw_json:
-            try:
-                data = json.loads(raw_json)
-            except json.JSONDecodeError:
-                if _looks_like_b64(raw_json):
-                    data = _parse_b64(raw_json)
-                else:
-                    logging.error("GOOGLE_SHEETS_CREDENTIALS_JSON не схожий ні на JSON, ні на base64 (len=%d)", len(raw_json))
-                    raise
-        else:
-            raise RuntimeError("Немає GOOGLE_SHEETS_CREDENTIALS_B64 і GOOGLE_SHEETS_CREDENTIALS_JSON")
-
-        email = data.get("client_email", "")
-        logging.warning("CREDS OK: client_email=***%s", email[-18:] if email else "missing")
+        # прибираємо всі пробіли/перенесення на випадок, якщо вони є
+        b64 = "".join(raw_b64.split())
+        payload = base64.b64decode(b64).decode("utf-8")
+        data = json.loads(payload)
     except Exception:
-        logging.exception("Не вдалося розібрати Google credentials")
+        logging.exception("Failed to decode/parse GOOGLE_SHEETS_CREDENTIALS_B64")
         raise
+
+    email = data.get("client_email", "")
+    logging.warning("CREDS OK: client_email=***%s", email[-18:] if email else "missing")
 
     creds = ServiceAccountCredentials.from_json_keyfile_dict(data, scope)
     client = gspread.authorize(creds)
@@ -112,7 +109,7 @@ async def run_once():
                     await send_to_channels(final_text, media_url)
                     sheet.update_cell(idx, 5, "✅")  # кол.5 = "Статус"
     except Exception as e:
-        logging.error(f"Помилка в run_once: {e}")
+        logging.exception("Помилка в run_once")
 
 # локальний ручний запуск однієї ітерації (не використовується на Render)
 if __name__ == "__main__":
