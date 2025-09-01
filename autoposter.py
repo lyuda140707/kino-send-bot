@@ -41,7 +41,6 @@ bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=None))
 def get_sheet():
     import base64, json
 
-    # Достатній scope для Sheets + Drive
     scope = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive",
@@ -52,8 +51,7 @@ def get_sheet():
         raise RuntimeError("GOOGLE_SHEETS_CREDENTIALS_B64 is empty or not set")
 
     try:
-        # прибираємо всі пробіли/перенесення на випадок, якщо вони є
-        b64 = "".join(raw_b64.split())
+        b64 = "".join(raw_b64.split())  # прибрати перенесення/пробіли всередині
         payload = base64.b64decode(b64).decode("utf-8")
         data = json.loads(payload)
     except Exception:
@@ -84,32 +82,63 @@ async def run_once():
     """Одна ітерація: знайти пости на час і відправити їх, оновити статус."""
     try:
         sheet = get_sheet()
-        expected_headers = ["Текст", "Дата і час", "Оригінальне посилання", "Прямий лінк", "Статус"]
-        rows = sheet.get_all_records(expected_headers=expected_headers)
+
+        # швидка перевірка доступу та заголовків
+        try:
+            a1 = sheet.acell("A1").value
+            logging.warning("CHECK A1: %r", a1)
+        except Exception:
+            logging.exception("Не можу прочитати A1 — перевір SHEET_ID і доступ (Share: Editor на client_email)")
+            return
+
+        headers = sheet.row_values(1)
+        logging.warning("HEADERS row1: %s", headers)
+
+        # без expected_headers — сумісно з gspread 6.x
+        rows = sheet.get_all_records()  # head=1 за замовчуванням
 
         tz = pytz.timezone(TIMEZONE)
         now = datetime.now(tz)
 
+        def getv(row, key):
+            return (row.get(key) or row.get(key.strip()) or "").strip()
+
         for idx, row in enumerate(rows, start=2):  # 2 — бо 1-й рядок це заголовки
-            status = (row.get("Статус") or "").strip()
-            dt_str = (row.get("Дата і час") or "").strip()
-            text = (row.get("Текст") or "").strip()
-            media_url = (row.get("Прямий лінк") or "").strip()
+            status     = getv(row, "Статус")
+            dt_str     = getv(row, "Дата і час")
+            text       = getv(row, "Текст")
+            media_url  = getv(row, "Прямий лінк")
 
-            if not status and dt_str and text:
+            if status or not dt_str or not text:
+                continue
+
+            # парсимо дату у кількох форматах
+            dt = None
+            for fmt in ("%Y-%m-%d %H:%M", "%d.%m.%Y %H:%M", "%Y/%m/%d %H:%M"):
                 try:
-                    dt = tz.localize(datetime.strptime(dt_str, "%Y-%m-%d %H:%M"))
+                    naive = datetime.strptime(dt_str, fmt)
+                    dt = tz.localize(naive)
+                    break
                 except ValueError:
-                    logging.warning(f"Некоректна дата у рядку {idx}: {dt_str}")
                     continue
+            if dt is None:
+                logging.warning("Некоректна дата у рядку %d: %r", idx, dt_str)
+                continue
 
-                if dt <= now:
-                    footer = random.choice(FOOTERS)
-                    final_text = f"{text}\n\n{footer}"
+            if dt <= now:
+                footer = random.choice(FOOTERS)
+                final_text = f"{text}\n\n{footer}"
+                try:
                     await send_to_channels(final_text, media_url)
                     sheet.update_cell(idx, 5, "✅")  # кол.5 = "Статус"
-    except Exception as e:
+                    logging.info("Відправлено рядок %d", idx)
+                except Exception:
+                    logging.exception("Збій під час відправки/оновлення для рядка %d", idx)
+                    continue
+
+    except Exception:
         logging.exception("Помилка в run_once")
+
 
 # локальний ручний запуск однієї ітерації (не використовується на Render)
 if __name__ == "__main__":
